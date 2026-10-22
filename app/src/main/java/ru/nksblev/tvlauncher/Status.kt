@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.SocketTimeoutException
 import kotlin.math.roundToInt
@@ -32,6 +33,21 @@ object Status {
                 !it.second.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
         }?.first
 
+    private fun subnetBroadcast(ctx: Context, net: Network?): InetAddress? {
+        if (net == null) return null
+        val cm = ctx.getSystemService(ConnectivityManager::class.java) ?: return null
+        val la = cm.getLinkProperties(net)?.linkAddresses?.firstOrNull { it.address is Inet4Address } ?: return null
+        val ip = la.address.address
+        val prefix = la.prefixLength
+        val mask = if (prefix == 0) 0 else (-1 shl (32 - prefix))
+        val ipInt = ((ip[0].toInt() and 0xff) shl 24) or ((ip[1].toInt() and 0xff) shl 16) or
+            ((ip[2].toInt() and 0xff) shl 8) or (ip[3].toInt() and 0xff)
+        val b = ipInt or mask.inv()
+        return InetAddress.getByAddress(
+            byteArrayOf((b ushr 24).toByte(), (b ushr 16).toByte(), (b ushr 8).toByte(), b.toByte())
+        )
+    }
+
     /** Tailscale exposes explicit broadcast actions to connect / disconnect. */
     fun setTailscale(ctx: Context, on: Boolean) {
         val action = if (on) "com.tailscale.ipn.CONNECT_VPN" else "com.tailscale.ipn.DISCONNECT_VPN"
@@ -48,9 +64,13 @@ object Status {
             DatagramSocket().use { sock ->
                 sock.broadcast = true
                 sock.soTimeout = 1500
-                wifiNetwork(ctx)?.let { net -> runCatching { net.bindSocket(sock) } }
+                val net = wifiNetwork(ctx)
+                net?.let { runCatching { it.bindSocket(sock) } }
                 val msg = "SRCH * HTTP/1.1\ndevice-discovery-protocol-version:00030010\n".toByteArray()
-                sock.send(DatagramPacket(msg, msg.size, InetAddress.getByName("255.255.255.255"), 9302))
+                // Subnet broadcast (e.g. 192.168.0.255) is routed via Wi-Fi even when a VPN
+                // with "allow LAN" is active; 255.255.255.255 may end up in the VPN tunnel.
+                val targets = listOfNotNull(subnetBroadcast(ctx, net), InetAddress.getByName("255.255.255.255"))
+                for (t in targets) runCatching { sock.send(DatagramPacket(msg, msg.size, t, 9302)) }
                 val buf = ByteArray(2048)
                 val packet = DatagramPacket(buf, buf.size)
                 sock.receive(packet)
