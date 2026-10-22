@@ -1,0 +1,347 @@
+package ru.nksblev.tvlauncher
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.tv.material3.Button
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.LocalContentColor
+import androidx.tv.material3.Surface
+import androidx.tv.material3.Text
+import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+@Composable
+fun HomeScreen(s: UiState, vm: HomeViewModel) {
+    val theme = themeById(s.settings.themeId)
+    val hero = s.hero
+    val custom = s.settings.wallpaperUrl.ifBlank { null }
+    val backdrop: String? = when (s.settings.wallpaperMode) {
+        WallpaperMode.POSTER -> (hero as? HomeItem.Media)?.backdrop ?: custom
+        WallpaperMode.CUSTOM -> custom
+        WallpaperMode.THEME -> null
+    }
+    val firstTile = remember { FocusRequester() }
+
+    Box(Modifier.fillMaxSize()) {
+        Backdrop(backdrop, theme)
+        Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 28.dp)) {
+            TopBar(s, vm)
+            HeroInfo(hero, Modifier.weight(1f).fillMaxWidth())
+            ContentRows(s, vm, firstTile, Modifier.fillMaxWidth().height(310.dp))
+        }
+        s.tileMenu?.let { TileMenu(it, vm) }
+    }
+
+    LaunchedEffect(s.pinned.isNotEmpty(), s.focusTick) {
+        if (s.pinned.isNotEmpty()) {
+            delay(150)
+            runCatching { firstTile.requestFocus() }
+        }
+    }
+}
+
+@Composable
+private fun Backdrop(url: String?, theme: ThemeSpec) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(theme.top, theme.bottom)))
+    ) {
+        Crossfade(targetState = url, animationSpec = tween(700), label = "backdrop") { u ->
+            if (u != null) {
+                AsyncImage(
+                    model = u,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        // Apple TV–style scrims: keep text and tiles readable over any poster.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color(0x55000000),
+                        0.35f to Color(0x11000000),
+                        0.6f to Color(0x88000000),
+                        1f to Color(0xF2000000),
+                    )
+                )
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.horizontalGradient(0f to Color(0x99000000), 0.55f to Color.Transparent))
+        )
+    }
+}
+
+@Composable
+private fun HeroInfo(item: HomeItem?, modifier: Modifier) {
+    Box(modifier, contentAlignment = Alignment.BottomStart) {
+        AnimatedContent(
+            targetState = item,
+            transitionSpec = { fadeIn(tween(350)) togetherWith fadeOut(tween(200)) },
+            label = "hero",
+        ) { it ->
+            if (it != null) {
+                Column(Modifier.fillMaxWidth(0.6f).padding(bottom = 12.dp)) {
+                    Text(
+                        it.title,
+                        color = Color.White,
+                        fontSize = 46.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val sub = when (it) {
+                        is HomeItem.Media -> it.subtitle
+                        is HomeItem.Input -> "Игровая приставка · HDMI"
+                        is HomeItem.App -> ""
+                    }
+                    if (sub.isNotBlank()) {
+                        Text(sub, color = Color(0xD9FFFFFF), fontSize = 18.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                    if (it is HomeItem.Media && it.summary.isNotBlank()) {
+                        Text(
+                            it.summary,
+                            color = Color(0xB3FFFFFF),
+                            fontSize = 15.sp,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContentRows(s: UiState, vm: HomeViewModel, firstTile: FocusRequester, modifier: Modifier) {
+    LazyColumn(
+        modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(bottom = 40.dp),
+    ) {
+        item(key = "apps") {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(22.dp),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 16.dp),
+            ) {
+                itemsIndexed(s.pinned, key = { _, it -> it.key }) { i, item ->
+                    val mod = if (i == 0) Modifier.focusRequester(firstTile) else Modifier
+                    when (item) {
+                        is HomeItem.App -> AppTile(
+                            item, mod,
+                            onFocus = { vm.onFocus(item) },
+                            onClick = { vm.open(item) },
+                            onLongClick = { vm.openTileMenu(item) },
+                        )
+
+                        is HomeItem.Input -> InputTile(
+                            item, s.ps5, mod,
+                            onFocus = { vm.onFocus(item) },
+                            onClick = { vm.open(item) },
+                            onLongClick = { vm.openTileMenu(item) },
+                        )
+
+                        is HomeItem.Media -> Unit
+                    }
+                }
+            }
+        }
+        if (s.onDeck.isNotEmpty()) {
+            item(key = "ondeck") { MediaRow("Продолжить просмотр", s.onDeck, wide = true, vm = vm) }
+        }
+        if (s.recent.isNotEmpty()) {
+            item(key = "recent") { MediaRow("Недавно добавлено", s.recent, wide = false, vm = vm) }
+        }
+    }
+}
+
+@Composable
+private fun MediaRow(title: String, items: List<HomeItem.Media>, wide: Boolean, vm: HomeViewModel) {
+    Column {
+        Text(
+            title,
+            color = Color(0xE6FFFFFF),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 14.dp),
+        ) {
+            itemsIndexed(items, key = { i, m -> "$i-${m.key}" }) { _, m ->
+                MediaTile(m, wide, onFocus = { vm.onFocus(m) }, onClick = { vm.open(m) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopBar(s: UiState, vm: HomeViewModel) {
+    var now by remember { mutableStateOf(Date()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = Date()
+            delay(10_000)
+        }
+    }
+    val ru = Locale("ru")
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column {
+            Text(
+                SimpleDateFormat("HH:mm", ru).format(now),
+                color = Color.White,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                SimpleDateFormat("EEEE, d MMMM", ru).format(now).replaceFirstChar { it.uppercase() },
+                color = Color(0xB3FFFFFF),
+                fontSize = 14.sp,
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        s.weather?.let { w ->
+            val sign = if (w.tempC > 0) "+" else ""
+            Chip("$sign${w.tempC}° ${w.description}")
+        }
+        s.traffic?.let { t -> Chip("Пробки $t", dot = trafficColor(t)) }
+        Chip(
+            if (s.vpnOn) "VPN" else "VPN выкл",
+            dot = if (s.vpnOn) Color(0xFF4ADE80) else Color(0xFF6B7280),
+            onClick = { vm.toggleVpn() },
+        )
+        Chip("PS5 · ${ps5Label(s.ps5)}", dot = ps5Color(s.ps5), onClick = { vm.openPs5() })
+        Chip("Настройки", onClick = { vm.openSettings() })
+    }
+}
+
+fun trafficColor(level: Int): Color = when {
+    level <= 3 -> Color(0xFF4ADE80)
+    level <= 6 -> Color(0xFFF5B942)
+    else -> Color(0xFFEF4444)
+}
+
+@Composable
+private fun Chip(text: String, dot: Color? = null, onClick: (() -> Unit)? = null) {
+    Spacer(Modifier.width(10.dp))
+    val content: @Composable () -> Unit = {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+        ) {
+            if (dot != null) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(text, fontSize = 14.sp)
+        }
+    }
+    val pill = RoundedCornerShape(50)
+    if (onClick == null) {
+        Box(Modifier.clip(pill).background(Color(0x33FFFFFF))) {
+            CompositionLocalProvider(LocalContentColor provides Color.White) { content() }
+        }
+    } else {
+        Surface(
+            onClick = onClick,
+            shape = ClickableSurfaceDefaults.shape(shape = pill),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color(0x33FFFFFF),
+                contentColor = Color.White,
+                focusedContainerColor = Color.White,
+                focusedContentColor = Color.Black,
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun TileMenu(item: HomeItem, vm: HomeViewModel) {
+    val first = remember { FocusRequester() }
+    Dialog(onDismissRequest = { vm.closeTileMenu() }) {
+        Column(
+            Modifier
+                .width(380.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF1B2028))
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(item.title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Button(
+                onClick = { vm.moveTile(item.key, -1) },
+                modifier = Modifier.fillMaxWidth().focusRequester(first),
+            ) { Text("← Переместить влево") }
+            Button(
+                onClick = { vm.moveTile(item.key, 1) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Переместить вправо →") }
+            Button(
+                onClick = { vm.unpin(item.key) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Убрать с главного экрана") }
+        }
+        LaunchedEffect(Unit) {
+            delay(80)
+            runCatching { first.requestFocus() }
+        }
+    }
+}
