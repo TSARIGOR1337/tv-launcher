@@ -69,9 +69,9 @@ fun HomeScreen(s: UiState, vm: HomeViewModel) {
 
     Box(Modifier.fillMaxSize()) {
         Backdrop(backdrop, theme)
-        Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 28.dp)) {
-            TopBar(s, vm)
-            HeroInfo(hero, Modifier.weight(1f).fillMaxWidth())
+        Column(Modifier.fillMaxSize().padding(top = 28.dp)) {
+            Box(Modifier.padding(horizontal = 56.dp)) { TopBar(s, vm) }
+            HeroInfo(hero, Modifier.weight(1f).fillMaxWidth().padding(horizontal = 56.dp))
             ContentRows(s, vm, firstTile, Modifier.fillMaxWidth().height(310.dp))
         }
         s.tileMenu?.let { TileMenu(it, vm) }
@@ -175,7 +175,7 @@ private fun ContentRows(s: UiState, vm: HomeViewModel, firstTile: FocusRequester
         item(key = "apps") {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(22.dp),
-                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 16.dp),
+                contentPadding = PaddingValues(horizontal = 56.dp, vertical = 16.dp),
             ) {
                 itemsIndexed(s.pinned, key = { _, it -> it.key }) { i, item ->
                     val mod = if (i == 0) Modifier.focusRequester(firstTile) else Modifier
@@ -216,11 +216,11 @@ private fun MediaRow(title: String, items: List<HomeItem.Media>, wide: Boolean, 
             color = Color(0xE6FFFFFF),
             fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(start = 6.dp),
+            modifier = Modifier.padding(start = 56.dp),
         )
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(18.dp),
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 14.dp),
+            contentPadding = PaddingValues(horizontal = 56.dp, vertical = 14.dp),
         ) {
             itemsIndexed(items, key = { i, m -> "$i-${m.key}" }) { _, m ->
                 MediaTile(m, wide, onFocus = { vm.onFocus(m) }, onClick = { vm.open(m) })
