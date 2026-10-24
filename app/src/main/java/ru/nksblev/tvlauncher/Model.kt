@@ -100,7 +100,6 @@ data class UiState(
     val recent: List<HomeItem.Media> = emptyList(),
     val plexStatus: String = "",
     val plexLink: PlexLink? = null,
-    val hero: HomeItem? = null,
     val weather: Weather? = null,
     val traffic: Int? = null,
     val vpnOn: Boolean = false,

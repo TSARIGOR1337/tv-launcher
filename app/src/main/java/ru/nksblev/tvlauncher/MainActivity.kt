@@ -51,9 +51,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun LauncherRoot(vm: HomeViewModel) {
     val s by vm.state.collectAsStateWithLifecycle()
+    val hero by vm.hero.collectAsStateWithLifecycle()
+    val wallpaper by vm.wallpaper.collectAsStateWithLifecycle()
     LauncherTheme {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            if (s.settingsOpen) SettingsScreen(s, vm) else HomeScreen(s, vm)
+            if (s.settingsOpen) SettingsScreen(s, vm) else HomeScreen(s, hero, wallpaper, vm)
             TrafficProbe(s.settings.yandexKey, vm::onTraffic)
         }
     }

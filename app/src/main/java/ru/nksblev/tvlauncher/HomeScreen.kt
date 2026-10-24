@@ -2,7 +2,14 @@ package ru.nksblev.tvlauncher
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.ui.platform.LocalContext
+import coil.request.ImageRequest
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -56,10 +63,9 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun HomeScreen(s: UiState, vm: HomeViewModel) {
+fun HomeScreen(s: UiState, hero: HomeItem?, wallpaper: String?, vm: HomeViewModel) {
     val theme = themeById(s.settings.themeId)
-    val hero = s.hero
-    val custom = s.settings.wallpaperUrl.ifBlank { null }
+    val custom = wallpaper
     val backdrop: String? = when (s.settings.wallpaperMode) {
         WallpaperMode.POSTER -> (hero as? HomeItem.Media)?.backdrop ?: custom
         WallpaperMode.CUSTOM -> custom
@@ -92,10 +98,11 @@ private fun Backdrop(url: String?, theme: ThemeSpec) {
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(theme.top, theme.bottom)))
     ) {
-        Crossfade(targetState = url, animationSpec = tween(700), label = "backdrop") { u ->
+        val context = LocalContext.current
+        Crossfade(targetState = url, animationSpec = tween(500), label = "backdrop") { u ->
             if (u != null) {
                 AsyncImage(
-                    model = u,
+                    model = remember(u) { ImageRequest.Builder(context).data(u).size(1280, 720).build() },
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
@@ -128,7 +135,8 @@ private fun HeroInfo(item: HomeItem?, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.BottomStart) {
         AnimatedContent(
             targetState = item,
-            transitionSpec = { fadeIn(tween(350)) togetherWith fadeOut(tween(200)) },
+            contentKey = { it?.key },
+            transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(160)) },
             label = "hero",
         ) { it ->
             if (it != null) {
@@ -136,9 +144,10 @@ private fun HeroInfo(item: HomeItem?, modifier: Modifier) {
                     Text(
                         it.title,
                         color = Color.White,
-                        fontSize = 46.sp,
+                        fontSize = 44.sp,
+                        lineHeight = 52.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     val sub = when (it) {
@@ -147,13 +156,14 @@ private fun HeroInfo(item: HomeItem?, modifier: Modifier) {
                         is HomeItem.App -> ""
                     }
                     if (sub.isNotBlank()) {
-                        Text(sub, color = Color(0xD9FFFFFF), fontSize = 18.sp, modifier = Modifier.padding(top = 6.dp))
+                        Text(sub, color = Color(0xD9FFFFFF), fontSize = 18.sp, lineHeight = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                     }
                     if (it is HomeItem.Media && it.summary.isNotBlank()) {
                         Text(
                             it.summary,
                             color = Color(0xB3FFFFFF),
                             fontSize = 15.sp,
+                            lineHeight = 21.sp,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 10.dp),
@@ -167,6 +177,26 @@ private fun HeroInfo(item: HomeItem?, modifier: Modifier) {
 
 @Composable
 private fun ContentRows(s: UiState, vm: HomeViewModel, firstTile: FocusRequester, modifier: Modifier) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides SmoothScroll) { ContentRowsInner(s, vm, firstTile, modifier) }
+}
+
+/**
+ * Smooth "pivot" scrolling like Apple TV / Google TV: the focused tile glides to a fixed
+ * position near the start edge with an eased animation instead of jumping.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private val SmoothScroll = object : BringIntoViewSpec {
+    @Suppress("OVERRIDE_DEPRECATION")
+    override val scrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 380, easing = FastOutSlowInEasing)
+
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val pivot = containerSize * 0.058f
+        return offset - pivot
+    }
+}
+
+@Composable
+private fun ContentRowsInner(s: UiState, vm: HomeViewModel, firstTile: FocusRequester, modifier: Modifier) {
     LazyColumn(
         modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),

@@ -24,9 +24,20 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     private var linkJob: Job? = null
+    private var focusJob: Job? = null
+    private var wallpaperJob: Job? = null
+
+    /** Kept outside [UiState] so moving focus does not recompose the tile rows. */
+    private val _hero = MutableStateFlow<HomeItem?>(null)
+    val hero: StateFlow<HomeItem?> = _hero.asStateFlow()
+
+    /** Direct image URL for the custom wallpaper (share links are resolved). */
+    private val _wallpaper = MutableStateFlow<String?>(null)
+    val wallpaper: StateFlow<String?> = _wallpaper.asStateFlow()
 
     init {
         reloadApps()
+        resolveWallpaper(_state.value.settings.wallpaperUrl)
         viewModelScope.launch {
             while (isActive) {
                 refreshStatus(); delay(15_000)
@@ -71,7 +82,25 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun closeSettings() = _state.update { it.copy(settingsOpen = false) }
 
     fun onFocus(item: HomeItem) {
-        if (_state.value.hero != item) _state.update { it.copy(hero = item) }
+        if (_hero.value?.key == item.key) return
+        // Debounce: while the user is scrolling quickly, don't swap posters/text on every step.
+        focusJob?.cancel()
+        focusJob = viewModelScope.launch {
+            delay(if (_hero.value == null) 0 else 220)
+            _hero.value = item
+        }
+    }
+
+    private fun resolveWallpaper(url: String) {
+        wallpaperJob?.cancel()
+        if (url.isBlank()) {
+            _wallpaper.value = null
+            return
+        }
+        wallpaperJob = viewModelScope.launch {
+            val direct = withContext(Dispatchers.IO) { runCatching { resolveImageUrl(url) }.getOrNull() }
+            _wallpaper.value = direct ?: url
+        }
     }
 
     fun openTileMenu(item: HomeItem) = _state.update { it.copy(tileMenu = item) }
@@ -98,6 +127,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         prefs.save(new)
         _state.update { it.copy(settings = new) }
         if (new.pinned != old.pinned || new.ps5Uri != old.ps5Uri) reloadApps()
+        if (new.wallpaperUrl != old.wallpaperUrl) resolveWallpaper(new.wallpaperUrl)
         if (new.plexUrl != old.plexUrl || new.plexToken != old.plexToken) {
             viewModelScope.launch { loadPlex() }
         }
