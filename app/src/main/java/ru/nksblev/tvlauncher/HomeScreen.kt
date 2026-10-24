@@ -175,6 +175,7 @@ private fun HeroInfo(item: HomeItem?, modifier: Modifier) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ContentRows(s: UiState, vm: HomeViewModel, firstTile: FocusRequester, modifier: Modifier) {
     CompositionLocalProvider(LocalBringIntoViewSpec provides SmoothScroll) { ContentRowsInner(s, vm, firstTile, modifier) }
