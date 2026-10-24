@@ -44,7 +44,7 @@ private val TileShape = RoundedCornerShape(16.dp)
 
 // "Pseudo-glass": translucent tinted surface + hairline border. No live blur (too heavy for this TV).
 private val TileColor = Color(0x24FFFFFF)
-private val TileFocusedColor = Color(0x45FFFFFF)
+private val TileFocusedColor = Color(0xFF2B313B)
 
 @Composable
 private fun tileBorder() = CardDefaults.border(
@@ -58,10 +58,13 @@ private fun focusAlpha(focused: Boolean, dim: Float = 0.6f): Float =
     animateFloatAsState(if (focused) 1f else dim, tween(180), label = "tileAlpha").value
 
 @Composable
-private fun tileColors() = CardDefaults.colors(
+private fun tileColors(native: Color? = null) = CardDefaults.colors(
     containerColor = TileColor,
-    focusedContainerColor = TileFocusedColor,
+    // Focused tile becomes fully opaque in the app's own colour.
+    focusedContainerColor = native ?: TileFocusedColor,
 )
+
+private val PS5_BLUE = Color(0xFF0B3C8C)
 
 val APP_TILE_W = 224.dp
 val APP_TILE_H = 126.dp
@@ -87,7 +90,7 @@ fun AppTile(
         shape = CardDefaults.shape(shape = TileShape),
         scale = CardDefaults.scale(focusedScale = 1.1f),
         border = tileBorder(),
-        colors = tileColors(),
+        colors = tileColors(item.color?.let { Color(it) }),
     ) {
         Box(Modifier.fillMaxSize().alpha(focusAlpha(focused)), contentAlignment = Alignment.Center) {
             val img = item.image
@@ -139,7 +142,7 @@ fun InputTile(
         shape = CardDefaults.shape(shape = TileShape),
         scale = CardDefaults.scale(focusedScale = 1.1f),
         border = tileBorder(),
-        colors = tileColors(),
+        colors = tileColors(PS5_BLUE),
     ) {
         Box(Modifier.fillMaxSize().alpha(focusAlpha(focused)), contentAlignment = Alignment.Center) {
             Text(item.title, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold)

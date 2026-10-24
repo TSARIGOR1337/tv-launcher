@@ -47,6 +47,8 @@ sealed class HomeItem {
         override val title: String,
         val image: ImageBitmap?,
         val isBanner: Boolean,
+        /** The app's own colour (ARGB), shown as an opaque background when the tile is focused. */
+        val color: Int? = null,
     ) : HomeItem() {
         override val key: String get() = "app:$pkg"
     }

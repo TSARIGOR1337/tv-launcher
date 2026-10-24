@@ -3,6 +3,8 @@ package ru.nksblev.tvlauncher
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import androidx.compose.ui.graphics.asImageBitmap
@@ -14,6 +16,12 @@ class AppsRepository(private val ctx: Context) {
     /** Apps whose system banner looks bad: show a clean text tile instead. */
     private val textTiles = mapOf(
         "com.yandex.tv.home" to "Яндекс",
+    )
+
+    /** Brand colours for tiles whose banner doesn't give a usable colour. */
+    private val brandColors = mapOf(
+        "com.yandex.tv.home" to 0xFFFC3F1D.toInt(),
+        "org.smarttube.stable" to 0xFF2B2B2B.toInt(),
     )
 
     fun allApps(): List<AppInfo> {
@@ -35,7 +43,7 @@ class AppsRepository(private val ctx: Context) {
         } catch (e: Exception) {
             return null
         }
-        textTiles[pkg]?.let { return HomeItem.App(pkg, it, null, false) }
+        textTiles[pkg]?.let { return HomeItem.App(pkg, it, null, false, brandColors[pkg]) }
         val label = pm.getApplicationLabel(ai).toString()
         var banner: Drawable? = try {
             pm.getApplicationBanner(ai)
@@ -50,13 +58,34 @@ class AppsRepository(private val ctx: Context) {
                 null
             }
         }
-        val image = try {
-            if (banner != null) banner.toBitmap(640, 360).asImageBitmap()
-            else pm.getApplicationIcon(ai).toBitmap(192, 192).asImageBitmap()
+        val bitmap = try {
+            if (banner != null) banner.toBitmap(640, 360)
+            else pm.getApplicationIcon(ai).toBitmap(192, 192)
         } catch (e: Exception) {
             null
         }
-        return HomeItem.App(pkg, label, image, banner != null)
+        val color = brandColors[pkg] ?: bitmap?.let { edgeColor(it) }
+        return HomeItem.App(pkg, label, bitmap?.asImageBitmap(), banner != null, color)
+    }
+
+    /**
+     * Average colour of the opaque pixels along the image border — for a banner that is
+     * its background colour. Returns null if the border is mostly transparent.
+     */
+    private fun edgeColor(b: Bitmap): Int? {
+        var r = 0L; var g = 0L; var bl = 0L; var n = 0; var total = 0
+        fun take(x: Int, y: Int) {
+            total++
+            val c = b.getPixel(x, y)
+            if (Color.alpha(c) < 200) return
+            r += Color.red(c); g += Color.green(c); bl += Color.blue(c); n++
+        }
+        val stepX = maxOf(1, b.width / 40)
+        val stepY = maxOf(1, b.height / 24)
+        for (x in 0 until b.width step stepX) { take(x, 1); take(x, b.height - 2) }
+        for (y in 0 until b.height step stepY) { take(1, y); take(b.width - 2, y) }
+        if (total == 0 || n < total / 2) return null
+        return Color.rgb((r / n).toInt(), (g / n).toInt(), (bl / n).toInt())
     }
 }
 
