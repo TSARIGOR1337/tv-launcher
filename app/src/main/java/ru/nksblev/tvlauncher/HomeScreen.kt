@@ -43,7 +43,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -136,7 +140,7 @@ private fun HeroInfo(item: HomeItem?, modifier: Modifier) {
         AnimatedContent(
             targetState = item,
             contentKey = { it?.key },
-            transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(160)) },
+            transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(100)) },
             label = "hero",
         ) { it ->
             if (it != null) {
@@ -188,7 +192,7 @@ private fun ContentRows(s: UiState, vm: HomeViewModel, firstTile: FocusRequester
 @OptIn(ExperimentalFoundationApi::class)
 private val SmoothScroll = object : BringIntoViewSpec {
     @Suppress("OVERRIDE_DEPRECATION")
-    override val scrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 380, easing = FastOutSlowInEasing)
+    override val scrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 200, easing = FastOutSlowInEasing)
 
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val pivot = containerSize * 0.058f
@@ -205,6 +209,7 @@ private fun ContentRowsInner(s: UiState, vm: HomeViewModel, firstTile: FocusRequ
     ) {
         item(key = "apps") {
             LazyRow(
+                modifier = Modifier.edgeFade(),
                 horizontalArrangement = Arrangement.spacedBy(22.dp),
                 contentPadding = PaddingValues(horizontal = 56.dp, vertical = 16.dp),
             ) {
@@ -250,6 +255,7 @@ private fun MediaRow(title: String, items: List<HomeItem.Media>, wide: Boolean, 
             modifier = Modifier.padding(start = 56.dp),
         )
         LazyRow(
+            modifier = Modifier.edgeFade(),
             horizontalArrangement = Arrangement.spacedBy(18.dp),
             contentPadding = PaddingValues(horizontal = 56.dp, vertical = 14.dp),
         ) {
@@ -259,6 +265,22 @@ private fun MediaRow(title: String, items: List<HomeItem.Media>, wide: Boolean, 
         }
     }
 }
+
+/** "Row in haze": the row dissolves towards the left and right screen edges. */
+private fun Modifier.edgeFade(): Modifier = this
+    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            brush = Brush.horizontalGradient(
+                0f to Color.Transparent,
+                0.035f to Color.Black,
+                0.80f to Color.Black,
+                1f to Color.Transparent,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 @Composable
 private fun TopBar(s: UiState, vm: HomeViewModel) {

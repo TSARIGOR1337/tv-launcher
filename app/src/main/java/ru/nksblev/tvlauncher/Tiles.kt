@@ -14,7 +14,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,14 +40,22 @@ import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 
-private val TileShape = RoundedCornerShape(14.dp)
-private val TileColor = Color(0xFF1E232B)
-private val TileFocusedColor = Color(0xFF2C333E)
+private val TileShape = RoundedCornerShape(16.dp)
+
+// "Pseudo-glass": translucent tinted surface + hairline border. No live blur (too heavy for this TV).
+private val TileColor = Color(0x24FFFFFF)
+private val TileFocusedColor = Color(0x45FFFFFF)
 
 @Composable
 private fun tileBorder() = CardDefaults.border(
-    focusedBorder = Border(border = BorderStroke(3.dp, Color.White), shape = TileShape),
+    border = Border(border = BorderStroke(1.dp, Color(0x33FFFFFF)), shape = TileShape),
+    focusedBorder = Border(border = BorderStroke(2.dp, Color(0xE6FFFFFF)), shape = TileShape),
 )
+
+/** Unfocused tiles are dimmed ("haze"), the focused one is fully visible. */
+@Composable
+private fun focusAlpha(focused: Boolean, dim: Float = 0.6f): Float =
+    animateFloatAsState(if (focused) 1f else dim, tween(180), label = "tileAlpha").value
 
 @Composable
 private fun tileColors() = CardDefaults.colors(
@@ -59,18 +74,22 @@ fun AppTile(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
             .size(APP_TILE_W, APP_TILE_H)
-            .onFocusChanged { if (it.isFocused) onFocus() },
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocus()
+            },
         shape = CardDefaults.shape(shape = TileShape),
         scale = CardDefaults.scale(focusedScale = 1.1f),
         border = tileBorder(),
         colors = tileColors(),
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().alpha(focusAlpha(focused)), contentAlignment = Alignment.Center) {
             val img = item.image
             when {
                 img != null && item.isBanner -> Image(
@@ -107,18 +126,22 @@ fun InputTile(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    var focused by remember { mutableStateOf(false) }
     Card(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
             .size(APP_TILE_W, APP_TILE_H)
-            .onFocusChanged { if (it.isFocused) onFocus() },
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocus()
+            },
         shape = CardDefaults.shape(shape = TileShape),
         scale = CardDefaults.scale(focusedScale = 1.1f),
         border = tileBorder(),
         colors = tileColors(),
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().alpha(focusAlpha(focused)), contentAlignment = Alignment.Center) {
             Text(item.title, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -141,12 +164,16 @@ fun MediaTile(
 ) {
     val w = if (wide) 256.dp else 140.dp
     val h = if (wide) 144.dp else 210.dp
-    Column(Modifier.width(w)) {
+    var focused by remember { mutableStateOf(false) }
+    Column(Modifier.width(w).alpha(focusAlpha(focused, 0.7f))) {
         Card(
             onClick = onClick,
             modifier = Modifier
                 .size(w, h)
-                .onFocusChanged { if (it.isFocused) onFocus() },
+                .onFocusChanged {
+                    focused = it.isFocused
+                    if (it.isFocused) onFocus()
+                },
             shape = CardDefaults.shape(shape = TileShape),
             scale = CardDefaults.scale(focusedScale = 1.08f),
             border = tileBorder(),

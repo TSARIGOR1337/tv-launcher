@@ -86,7 +86,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         // Debounce: while the user is scrolling quickly, don't swap posters/text on every step.
         focusJob?.cancel()
         focusJob = viewModelScope.launch {
-            delay(if (_hero.value == null) 0 else 220)
+            delay(if (_hero.value == null) 0 else 120)
             _hero.value = item
         }
     }
